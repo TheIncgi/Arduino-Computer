@@ -3,7 +3,7 @@
 int RAM::memoryUnits = 255;
 double RAM::memSize = 0;
 
-void RAM::countMemUnits(){
+void RAM::countMemUnits(){ //could have it read first and restore the value if ram could be added at runtime, but not likely to occur
   long addr = 0;
   byte magic = -74;
   int units = 0;
@@ -70,6 +70,21 @@ void RAM::memWrite(unsigned long addr, byte* vals, unsigned int s, unsigned int 
   }
   memCS(-1); //TODO optimize by a rapid pulse on the shift reg clock then latch
 }
+void RAM::memWriteFill(unsigned long addr, byte value, unsigned long len){ 
+  int chipNum = addr/(MAX_CHIP_ADDR+1);
+  memCS( chipNum );
+  addr = addr % (MAX_CHIP_ADDR+1);
+  memSendInstr( 0x02, addr); //write
+  for( int i = 0; i<len; i++ ){
+    shiftOut(PIN_MEM_MSI, PIN_MEM_MCL, MSBFIRST, value);
+    addr++;
+    if(addr % (MAX_CHIP_ADDR+1) == 0 ){ //reached end of chip, move to next
+      memCS( ++chipNum );
+      memSendInstr( 0x02, 0 );
+    }
+  }
+  memCS(-1); //TODO optimize by a rapid pulse on the shift reg clock then latch
+}
 
 byte RAM::memRead(unsigned long addr){
   byte tmp;
@@ -105,6 +120,13 @@ unsigned long RAM::memReadUL(unsigned long addr){
     out |= buf[i];
   }
   return out;
+}
+void RAM::memWriteUL(unsigned long addr, unsigned long value){
+  byte buf[4];
+  for(byte i = 0; i<4; i++){
+    buf[i] = (value >> ((3-i)*8)) & 0xFF;
+  }
+  RAM::memWrite(addr, buf, 0, 4);
 }
 
 void RAM::memClear() {

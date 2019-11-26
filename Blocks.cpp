@@ -41,6 +41,44 @@ namespace Blocks{
   unsigned long getBlockAddress(unsigned long number){
     return number * Blocks::BLOCK_SIZE;
   }
+
+  unsigned long allocate(unsigned long previous){
+    while(Blocks::hasNext(previous)) previous = Blocks::getNextBlock(previous);
+    unsigned long block2 = Blocks::locateUnused();
+    if(block2 == 0)
+      throw "OUT OF MEMORY";
+      
+    unsigned long addr1 = Blocks::getBlockAddress( previous );
+    unsigned long addr2 = Blocks::getBlockAddress( block2 );
+
+    RAM::memWriteUL(addr1 +4, block2); //old.next = new
+    
+    RAM::memWriteUL(addr2   , block1);   //new.prev = old
+    RAM::memWriteUL(addr2 +4, block2); //new.next = new //no next, points to self
+    Blocks::blocksUsed++;
+    return block2;
+  }
+  void deallocate(unsigned long toDeallocate){//putting the first block in a sequence will erase the whole sequence
+    while(true){
+      unsigned long addr = Blocks::getBlockAddress(toDeallocate);
+      unsigned long next = Blocks::getNextBlock(toDeallocate);
+      RAM::memWriteFill(addr, 0, Blocks::BLOCK_SIZE); //clean up
+      Blocks::blocksUsed--;
+      if(next == toDeallocate) break;
+      if(Blocks::blocksUsed==0) throw "EXCESSIVE DEALLOCATION";//block 0 is always claimed
+      toDeallocate = next;
+    }
+  }
+  unsigned long locateUnused(){ 
+    for(unsigned long blockN = 1; blockN < maxBlocks(); blockN++){
+      if( ! Blocks::isUsed(blockN) ) return blockN;
+    }
+    return 0; //none, out of memory
+  }
+
+  unsigned long maxBlocks(){
+    return (RAM::MAX_CHIP_ADDR+1 / Blocks::BLOCK_SIZE) * RAM::memoryUnits;
+  }
   
   namespace Channel{
     unsigned int read( unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int s, unsigned int len){
@@ -65,7 +103,34 @@ namespace Blocks{
       }
       return nRead;
     }
-    void write(unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int len){}
+    unsigned int write(unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int s, unsigned int len){
+      unsigned long targetBlockInSequence = seekAddr / Blocks::BLOCK_PAYLOAD_SIZE;
+      unsigned long cur = startingBlock;
+      unsigned long next = Blocks::getNextBlock( cur );
+      unsigned int nWrote = 0;
+      while(next!=cur && cur != targetBlockInSequence){
+        cur = next;
+        next = Blocks::getNextBlock( cur );
+      }
+      while(cur < targetBlockInSequence){
+        cur = Blocks::allocate(cur);
+      }
+      unsigned int pos = s;
+      while(len > 0){
+        unsigned int toWrite = min(len, Blocks::BLOCK_PAYLOAD_SIZE);
+        RAM::memWrite(Blocks::getBlockAddress(cur)+8, buf, s, toWrite);
+        nWrote += toWrite;
+        s      += toWrite;
+        len    -= toWrite;
+        if(len <= 0) return nWrote;
+        
+        if(!Blocks::hasNext(cur)) //allocate or get next block
+          cur = Blocks::allocate(cur);
+        else
+          cur = Blocks::getNextBlock(cur);
+      }
+      return nWrote;
+    }
 
   }
 }

@@ -14,7 +14,8 @@
 //a full board provides 8,192‬ blocks
 //with 32-bit addressing there can be up to 262,144‬ blocks max
 namespace Blocks{
-  unsigned long firstEmptyBlock = 1; //0 reserved by channel managment system
+  //TODO optimize empty block finder: unsigned long firstEmptyBlock = 1; //0 reserved by channel managment system
+  unsigned long blocksUsed = 1;
   const unsigned int BLOCK_SIZE = 128;
   const unsigned int BLOCK_HEADER_SIZE = 8; //4 for prev, 4 for next block number
   const unsigned int BLOCK_PAYLOAD_SIZE = BLOCK_SIZE - BLOCK_HEADER_SIZE;
@@ -35,6 +36,12 @@ namespace Blocks{
 
   unsigned long getBlockNumber(unsigned long address);
   unsigned long getBlockAddress(unsigned long number);
+
+  /**Returns block number of new block*/
+  unsigned long allocate(unsigned long previous);       //previous block number to point to
+  void deallocate(unsigned long toDeallocate); //deallocates this block, and all after
+  unsigned long locateUnused();
+  unsigned long maxBlocks();
   
   namespace Channel{
 //    boolean isExists(String pID);
@@ -44,7 +51,7 @@ namespace Blocks{
 
     //returns bytes read
     unsigned int read( unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int s, unsigned int len);
-    void write(unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int len);
+    unsigned int write(unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int s, unsigned int len);
     //unsigned long getPayloadBlock(unsigned long address); //which block contains the Channeled address
   }
 }
