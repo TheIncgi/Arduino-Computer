@@ -28,7 +28,12 @@ namespace RAM{
   
   byte memRead(unsigned long addr);
   void memRead(unsigned long addr, byte* buf, unsigned int len);
+  void memRead(unsigned long addr, byte* buf, unsigned int s, unsigned int len);
+  
 
+  unsigned long memReadUL(unsigned long addr);
+  
+  
   //wipe everything
   void memClear();
 }

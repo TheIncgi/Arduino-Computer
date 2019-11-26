@@ -77,12 +77,15 @@ byte RAM::memRead(unsigned long addr){
   return tmp;
 }
 void RAM::memRead(unsigned long addr, byte* buf, unsigned int len){
+  memRead( addr, buf, 0, len);
+}
+void RAM::memRead(unsigned long addr, byte* buf, unsigned int s, unsigned int len){
   int chipNum = addr/(MAX_CHIP_ADDR+1);
   memCS( chipNum );
   addr = addr % (MAX_CHIP_ADDR+1);
   memSendInstr( 0x03, addr ); //read
   
-  for(int i = 0; i<len; i++){
+  for(int i = s; i<s+len; i++){
     buf[i] = shiftIn(PIN_MEM_MSO, PIN_MEM_MCL, MSBFIRST);
     addr++;
     if(addr % (MAX_CHIP_ADDR+1) == 0 ){ //reached end of chip, move to next
@@ -92,6 +95,18 @@ void RAM::memRead(unsigned long addr, byte* buf, unsigned int len){
   }
   memCS(-1);
 }
+
+unsigned long RAM::memReadUL(unsigned long addr){
+  byte buf[4];
+  RAM::memRead( addr, buf, 4);
+  unsigned long out = 0;
+  for(byte i = 0; i<4; i++){
+    out =  out << 8;
+    out |= buf[i];
+  }
+  return out;
+}
+
 void RAM::memClear() {
   memCS( -2 ); //all
   memSendInstr( 0x02, 0 ); //write
