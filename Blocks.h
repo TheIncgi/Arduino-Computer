@@ -1,6 +1,6 @@
 #ifndef Blocks_h
 #define Blocks_h
-
+#include <Arduino.h>
 
 
 //block format
@@ -44,7 +44,7 @@ namespace Blocks{
 
     //returns bytes read
     unsigned int read( unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int s, unsigned int len);
-    void write(unsigned long startingBlock, unsighed long seekAddr, byte* buf, unsigned int len);
+    void write(unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int len);
     //unsigned long getPayloadBlock(unsigned long address); //which block contains the Channeled address
   }
 }

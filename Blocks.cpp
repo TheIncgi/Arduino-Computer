@@ -54,7 +54,7 @@ namespace Blocks{
       }
       if(cur != targetBlockInSequence) return 0;
       while( len > 0 ){
-        unsigned byte toRead = min(len, Blocks::BLOCK_PAYLOAD_SIZE);
+        unsigned int toRead = min(len, Blocks::BLOCK_PAYLOAD_SIZE);
         RAM::memRead(Blocks::getBlockAddress(cur)+8, buf, s, toRead); //addr, buf, start, len
         s+=toRead;
         len-=toRead;
