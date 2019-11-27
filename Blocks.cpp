@@ -42,18 +42,31 @@ namespace Blocks{
     return number * Blocks::BLOCK_SIZE;
   }
 
+  unsigned long allocate(){
+    unsigned long block2 = Blocks::locateUnused();
+    if(block2 == 0)
+      return 0; //none
+      
+    unsigned long addr2 = Blocks::getBlockAddress( block2 );
+    
+    RAM::memWriteUL(addr2   , block2);   //new.prev = old
+    RAM::memWriteUL(addr2 +4, block2); //new.next = new //no next, points to self
+    Blocks::blocksUsed++;
+    return block2;
+  }
+
   unsigned long allocate(unsigned long previous){
     while(Blocks::hasNext(previous)) previous = Blocks::getNextBlock(previous);
     unsigned long block2 = Blocks::locateUnused();
     if(block2 == 0)
-      throw "OUT OF MEMORY";
+      return 0; //none
       
     unsigned long addr1 = Blocks::getBlockAddress( previous );
     unsigned long addr2 = Blocks::getBlockAddress( block2 );
 
     RAM::memWriteUL(addr1 +4, block2); //old.next = new
     
-    RAM::memWriteUL(addr2   , block1);   //new.prev = old
+    RAM::memWriteUL(addr2   , previous);   //new.prev = old
     RAM::memWriteUL(addr2 +4, block2); //new.next = new //no next, points to self
     Blocks::blocksUsed++;
     return block2;
@@ -65,7 +78,7 @@ namespace Blocks{
       RAM::memWriteFill(addr, 0, Blocks::BLOCK_SIZE); //clean up
       Blocks::blocksUsed--;
       if(next == toDeallocate) break;
-      if(Blocks::blocksUsed==0) throw "EXCESSIVE DEALLOCATION";//block 0 is always claimed
+      if(Blocks::blocksUsed==0) return; //throw "EXCESSIVE DEALLOCATION";//block 0 is always claimed
       toDeallocate = next;
     }
   }
@@ -117,6 +130,7 @@ namespace Blocks{
       }
       unsigned int pos = s;
       while(len > 0){
+        if(cur == 0) break; //no addr
         unsigned int toWrite = min(len, Blocks::BLOCK_PAYLOAD_SIZE);
         RAM::memWrite(Blocks::getBlockAddress(cur)+8, buf, s, toWrite);
         nWrote += toWrite;

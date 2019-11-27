@@ -38,6 +38,7 @@ namespace Blocks{
   unsigned long getBlockAddress(unsigned long number);
 
   /**Returns block number of new block*/
+  unsigned long allocate();       //New block for sequence
   unsigned long allocate(unsigned long previous);       //previous block number to point to
   void deallocate(unsigned long toDeallocate); //deallocates this block, and all after
   unsigned long locateUnused();
