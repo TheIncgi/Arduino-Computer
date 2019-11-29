@@ -1,6 +1,8 @@
 #include <SD.h>
 #include "ThePS2Keyboard.h"
 #include "Ram.h"
+#include "Blocks.h"
+#include "Value.h"
 
 //out means the keyboard outputs to the board
 #define PIN_KEYBOARD_CLOCK 3
@@ -54,14 +56,18 @@ void setup() {
   digitalWrite(PIN_MEM_MHD, HIGH); //high when not in use
 
   RAM::countMemUnits();
-  Serial.print("Memsize: "); Serial.print( RAM::memSize );
+  Serial.print("Memsize: "); Serial.println( RAM::memSize );
   sprint("Memory: ");
   sprint(  String( ((int)(  RAM::memSize*100/1048576.0   ))/100.0 )      );
   sprint("MiB (");
   sprint( String(RAM::memoryUnits) );
-  sprint(" memory units)");
-//  Serial.print("Memory units: ");
-//  Serial.println( memoryUnits );
+  sprint(" memory units)\n");
+
+  sprint("Clearing ram...\n");
+  RAM::memClear();
+  
+  testMemoryCh();
+  Serial.print("TEST COMPLETE");
 }
 
 void loop() {
@@ -89,6 +95,39 @@ void loop() {
 
 
 //TODO read/write
+
+void testMemoryCh(){
+  {
+    for(int i = 0; i<10; i++)
+      Serial.println(String("Block ")+i+( Blocks::isUsed(i)? " USED" : " FREE" ));
+
+    
+    Serial.println("Preforming Block system test");
+    unsigned long addr = Blocks::allocate(); //some new block
+    String x = "ExamplePID";
+    int len = x.length()+5;
+    
+    sprint("Created block: "+String( addr ) );
+    Value v;
+    unsigned long cur = 0;
+    cur = Blocks::Channel::readUnsignedLong(0, cur);
+    cur = cur==0? 4 : cur;
+    Serial.print("Registering block in system channel pos ");
+    Serial.println(cur);
+    Blocks::Channel::writeUnsignedLong(0, cur, addr);
+    Blocks::Channel::writeString( x );
+  }
+  {
+    unsigned long cur = 4;
+    unsinged long pid = 0;
+    do{
+      unsigned long block = Blocks::Channel::readUnsignedLong(0, cur);
+      if(block==0) break;
+      
+    }while(true);
+  }
+
+}
 
 void cls(){
   Serial3.write(0xFF);

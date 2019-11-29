@@ -15,7 +15,7 @@
 //with 32-bit addressing there can be up to 262,144‬ blocks max
 namespace Blocks{
   //TODO optimize empty block finder: unsigned long firstEmptyBlock = 1; //0 reserved by channel managment system
-  unsigned long blocksUsed = 1;
+  extern unsigned long blocksUsed;
   const unsigned int BLOCK_SIZE = 128;
   const unsigned int BLOCK_HEADER_SIZE = 8; //4 for prev, 4 for next block number
   const unsigned int BLOCK_PAYLOAD_SIZE = BLOCK_SIZE - BLOCK_HEADER_SIZE;
@@ -51,8 +51,19 @@ namespace Blocks{
 //    unsigned long getBlock(String pID, unsigned long blockNum);
 
     //returns bytes read
-    unsigned int read( unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int s, unsigned int len);
-    unsigned int write(unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int s, unsigned int len);
+    void read( unsigned long startingBlock, unsigned long &seekAddr, byte* buf, unsigned int s, unsigned int len);
+    void write(unsigned long startingBlock, unsigned long &seekAddr, byte* buf, unsigned int s, unsigned int len);
+
+    void write(unsigned long startingBlock, unsigned long &seekAddr, String value);
+    void write(unsigned long startingBlock, unsigned long &seekAddr, unsigned long value);
+    void write(unsigned long startingBlock, unsigned long &seekAddr, byte value);
+    void write(unsigned long startingBlock, unsigned long &seekAddr, unsigned int value);
+
+    String        readString(unsigned long startingBlock, unsigned long &seekAddr);
+    unsigned long readUnsignedLong(unsigned long startingBlock, unsigned long &seekAddr);
+    byte          readByte(unsigned long startingBlock, unsigned long &seekAddr);
+    unsigned int  readUnsinedInt(unsigned long startingBlock, unsigned long &seekAddr);
+    
     //unsigned long getPayloadBlock(unsigned long address); //which block contains the Channeled address
   }
 }

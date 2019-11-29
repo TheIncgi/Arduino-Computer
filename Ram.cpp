@@ -1,4 +1,5 @@
 #include "Ram.h"
+#include "Value.h"
 
 int RAM::memoryUnits = 255;
 double RAM::memSize = 0;
@@ -10,6 +11,7 @@ void RAM::countMemUnits(){ //could have it read first and restore the value if r
   while(true){
     Serial.print("CHECK [0x");
     Serial.print(addr, HEX);
+    Serial.println(']');
     
     memWrite(addr, magic);  //attempt to write a value
     if(memRead(addr) != magic) //check if the value was set
@@ -112,16 +114,16 @@ void RAM::memRead(unsigned long addr, byte* buf, unsigned int s, unsigned int le
 }
 
 unsigned long RAM::memReadUL(unsigned long addr){
-  byte buf[4];
-  RAM::memRead( addr, buf, 4);
-  unsigned long out = 0;
-  for(byte i = 0; i<4; i++){
-    out =  out << 8;
-    out |= buf[i];
-  }
-  return out;
+  Value value;
+  RAM::memRead( addr, value.bArr4, 4);
+//  unsigned long out = 0;
+//  for(byte i = 0; i<4; i++){
+//    out =  out << 8;
+//    out |= buf[i];
+//  }
+  return value.ul;
 }
-void RAM::memWriteUL(unsigned long addr, unsigned long value){
+void RAM::memWriteUL(unsigned long addr, unsigned long value){ //TODO optimize to Value.h
   byte buf[4];
   for(byte i = 0; i<4; i++){
     buf[i] = (value >> ((3-i)*8)) & 0xFF;
@@ -129,7 +131,7 @@ void RAM::memWriteUL(unsigned long addr, unsigned long value){
   RAM::memWrite(addr, buf, 0, 4);
 }
 
-void RAM::memClear() {
+void RAM::memClear() { //hardware revision could make this almost instant
   memCS( -2 ); //all
   memSendInstr( 0x02, 0 ); //write
   for( long l = 0; l <= MAX_CHIP_ADDR; l++){

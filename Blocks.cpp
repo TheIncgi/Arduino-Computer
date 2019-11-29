@@ -1,8 +1,10 @@
 #include "Blocks.h"
 #include "Ram.h"
+#include "Value.h"
 
 namespace Blocks{
 //  unsigned long firstEmptyBlock = 1; //0 reserved by channel managment system
+ unsigned long blocksUsed = 1;
 //  const unsigned int BLOCK_SIZE = 128;
 //  const unsigned int BLOCK_HEADER_SIZE = 8; //4 for prev, 4 for next
 //  const unsigned int BLOCK_PAYLOAD_SIZE = BLOCK_SIZE - BLOCK_HEADER_SIZE;
@@ -28,6 +30,7 @@ namespace Blocks{
   }
   unsigned long getNextBlock(unsigned long blockNum){
     unsigned long addr = Blocks::getBlockAddress( blockNum ) + 4;
+    Serial.println(String("Next for ")+blockNum+" is "+RAM::memReadUL(addr));
     return RAM::memReadUL( addr );
   }
   unsigned long getPrevBlock(unsigned long blockNum){
@@ -83,18 +86,20 @@ namespace Blocks{
     }
   }
   unsigned long locateUnused(){ 
+    Serial.println(String("Looking for block in range 1 to ")+maxBlocks() );
     for(unsigned long blockN = 1; blockN < maxBlocks(); blockN++){
       if( ! Blocks::isUsed(blockN) ) return blockN;
     }
+    Serial.println("OUT OF MEMORY");
     return 0; //none, out of memory
   }
 
   unsigned long maxBlocks(){
-    return (RAM::MAX_CHIP_ADDR+1 / Blocks::BLOCK_SIZE) * RAM::memoryUnits;
+    return ((RAM::MAX_CHIP_ADDR+1) / Blocks::BLOCK_SIZE) * RAM::memoryUnits;
   }
   
   namespace Channel{
-    unsigned int read( unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int s, unsigned int len){
+    void read( unsigned long startingBlock, unsigned long &seekAddr, byte* buf, unsigned int s, unsigned int len){
       unsigned long targetBlockInSequence = seekAddr / Blocks::BLOCK_PAYLOAD_SIZE;
       unsigned long cur = startingBlock;
       unsigned long next = Blocks::getNextBlock( cur );
@@ -103,7 +108,7 @@ namespace Blocks{
         cur = next;
         next = Blocks::getNextBlock( cur );
       }
-      if(cur != targetBlockInSequence) return 0;
+      if(cur != targetBlockInSequence) {seekAddr += nRead; return ;}
       while( len > 0 ){
         unsigned int toRead = min(len, Blocks::BLOCK_PAYLOAD_SIZE);
         RAM::memRead(Blocks::getBlockAddress(cur)+8, buf, s, toRead); //addr, buf, start, len
@@ -114,9 +119,10 @@ namespace Blocks{
         cur = next;
         next = Blocks::getNextBlock( cur );
       }
-      return nRead;
+      seekAddr += nRead;
+      return ;
     }
-    unsigned int write(unsigned long startingBlock, unsigned long seekAddr, byte* buf, unsigned int s, unsigned int len){
+    void write(unsigned long startingBlock, unsigned long &seekAddr, byte* buf, unsigned int s, unsigned int len){
       unsigned long targetBlockInSequence = seekAddr / Blocks::BLOCK_PAYLOAD_SIZE;
       unsigned long cur = startingBlock;
       unsigned long next = Blocks::getNextBlock( cur );
@@ -136,14 +142,63 @@ namespace Blocks{
         nWrote += toWrite;
         s      += toWrite;
         len    -= toWrite;
-        if(len <= 0) return nWrote;
+        if(len <= 0) {seekAddr += nWrote; return;}
         
         if(!Blocks::hasNext(cur)) //allocate or get next block
           cur = Blocks::allocate(cur);
         else
           cur = Blocks::getNextBlock(cur);
       }
-      return nWrote;
+      seekAddr += nWrote; return;
+    }
+    
+    void write(unsigned long startingBlock, unsigned long &seekAddr, String value){
+      Value v;
+      v.ui = value.length();
+      byte buf[value.length()];
+      arrayCopy(value, buf);
+      
+      write(startingBlock, seekAddr, v.bArr2, 0, 2); //seekAddr incremented in write
+      write(startingBlock, seekAddr, buf, 0, value.length());
+    }
+    void write(unsigned long startingBlock, unsigned long &seekAddr, unsigned long value){
+      Value v;
+      v.ul = value;
+      write(startingBlock, seekAddr, v.bArr4, 0, 4);
+    }
+    void write(unsigned long startingBlock, unsigned long &seekAddr, byte value){
+      Value v;
+      v.b = value;
+      write(startingBlock, seekAddr, v.bArr1, 0, 1);
+    }
+    void write(unsigned long startingBlock, unsigned long &seekAddr, unsigned int value){
+      Value v;
+      v.ui = value;
+      write(startingBlock, seekAddr, v.bArr2, 0, 2);
+    }
+    
+    String        readString(unsigned long startingBlock, unsigned long &seekAddr){
+      Value v;
+      read(startingBlock, seekAddr, v.bArr2, 0, 2);
+      byte buf[v.ui];
+      read(startingBlock, seekAddr, buf, 0, v.ui);
+
+      return String((char*)buf);
+    }
+    unsigned long readUnsignedLong(unsigned long startingBlock, unsigned long &seekAddr){
+      Value v;
+      read(startingBlock, seekAddr, v.bArr4, 0, 4);
+      return v.ul;
+    }
+    byte          readByte(unsigned long startingBlock, unsigned long &seekAddr){
+      Value v;
+      read(startingBlock, seekAddr, v.bArr1, 0, 1);
+      return v.b;
+    }
+    unsigned int  readUnsinedInt(unsigned long startingBlock, unsigned long &seekAddr){
+      Value v;
+      read(startingBlock, seekAddr, v.bArr2, 0, 2);
+      return v.ui;
     }
 
   }
