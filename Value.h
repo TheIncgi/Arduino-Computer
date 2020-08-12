@@ -11,8 +11,6 @@ union Value {
   short s;
   long l;
   float f;
-  double d;
-  unsigned short us;
   unsigned int ui;
   unsigned long ul;
 };

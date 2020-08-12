@@ -34,7 +34,8 @@ namespace RAM{
 
   unsigned long memReadUL(unsigned long addr);
   void memWriteUL(unsigned long addr, unsigned long value);
-  
+
+  void memDump(unsigned long addr, unsigned long len);
   
   //wipe everything
   void memClear();

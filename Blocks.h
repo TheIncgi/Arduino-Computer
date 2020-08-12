@@ -12,13 +12,15 @@
 //For a block size of 128...
 //each chip provides 131,072 bytes or 1024 blocks
 //a full board provides 8,192‬ blocks
-//with 32-bit addressing there can be up to 262,144‬ blocks max
+//with 32-bit addressing there can be up to 262,144‬ blocks max (arduino int is only 0 to 65,535
 namespace Blocks{
   //TODO optimize empty block finder: unsigned long firstEmptyBlock = 1; //0 reserved by channel managment system
   extern unsigned long blocksUsed;
-  const unsigned int BLOCK_SIZE = 128;
+  const unsigned int BLOCK_SIZE = 128; //TODO EEPROM config
   const unsigned int BLOCK_HEADER_SIZE = 8; //4 for prev, 4 for next block number
   const unsigned int BLOCK_PAYLOAD_SIZE = BLOCK_SIZE - BLOCK_HEADER_SIZE;
+
+  typedef unsigned long BlockID;
   
 //marked as used if any of:
 // - block is number 0
@@ -26,46 +28,26 @@ namespace Blocks{
 //if a block does not have a next or prev, it will point to itself
 
   /**Must have buffer size of atleast BLOCK_PAYLOAD_SIZE*/
-  void readBlock(unsigned long, byte* blockBuffer);
-  void writeBlock(unsigned long, byte* blockBuffer);
-  boolean isUsed(unsigned long blockNum); //blockNum==0 or next!=0
-  boolean hasNext(unsigned long blockNum);
-  boolean hasPrev(unsigned long blockNum);
-  unsigned long getNextBlock(unsigned long blockNum);
-  unsigned long getPrevBlock(unsigned long blockNum);
+  boolean isUsed(BlockID blockNum); //blockNum==0 or next!=0
+  boolean hasNext(BlockID blockNum);
+  boolean hasPrev(BlockID blockNum);
+  BlockID getNextBlock(BlockID blockNum);
+  BlockID getPrevBlock(BlockID blockNum);
+  BlockID getFirst(BlockID blockNum);
+  BlockID getLast(BlockID blockNum);
+  BlockID getNth(BlockID start, BlockID offset);
 
-  unsigned long getBlockNumber(unsigned long address);
-  unsigned long getBlockAddress(unsigned long number);
+  BlockID getBlockNumber(unsigned long address);
+  unsigned long getBlockAddress(BlockID number);
 
   /**Returns block number of new block*/
-  unsigned long allocate();       //New block for sequence
-  unsigned long allocate(unsigned long previous);       //previous block number to point to
-  void deallocate(unsigned long toDeallocate); //deallocates this block, and all after
-  unsigned long locateUnused();
-  unsigned long maxBlocks();
+  BlockID allocate();       //New block for sequence
+  BlockID allocate(BlockID previous);       //previous block number to point to
+  void deallocate(BlockID toDeallocate); //deallocates this block, and all after
+  BlockID locateUnused();
+  BlockID maxBlocks();
   
-  namespace Channel{
-//    boolean isExists(String pID);
-//    void make(String pID); //should err if name exists
-//    void destroy(String pID);
-//    unsigned long getBlock(String pID, unsigned long blockNum);
 
-    //returns bytes read
-    void read( unsigned long startingBlock, unsigned long &seekAddr, byte* buf, unsigned int s, unsigned int len);
-    void write(unsigned long startingBlock, unsigned long &seekAddr, byte* buf, unsigned int s, unsigned int len);
-
-    void write(unsigned long startingBlock, unsigned long &seekAddr, String value);
-    void write(unsigned long startingBlock, unsigned long &seekAddr, unsigned long value);
-    void write(unsigned long startingBlock, unsigned long &seekAddr, byte value);
-    void write(unsigned long startingBlock, unsigned long &seekAddr, unsigned int value);
-
-    String        readString(unsigned long startingBlock, unsigned long &seekAddr);
-    unsigned long readUnsignedLong(unsigned long startingBlock, unsigned long &seekAddr);
-    byte          readByte(unsigned long startingBlock, unsigned long &seekAddr);
-    unsigned int  readUnsinedInt(unsigned long startingBlock, unsigned long &seekAddr);
-    
-    //unsigned long getPayloadBlock(unsigned long address); //which block contains the Channeled address
-  }
 }
 
 #endif

@@ -14,39 +14,44 @@ namespace Blocks{
 // - block's next field is not 0  (since 0 will always be the first block, nothing will point to it, so this means the block in question isn't used
 //if a block does not have a next or prev, it will point to itself
   
-  void readBlock(unsigned long, byte* blockBuffer){
-  }
-  void writeBlock(unsigned long, byte* blockBuffer){
-  }
-  boolean isUsed(unsigned long blockNum){ //blockNum==0 or next!=0
+  
+  boolean isUsed(BlockID blockNum){ //blockNum==0 or next!=0
     if( blockNum==0 ) return true;
     return 0 < getNextBlock( blockNum );
   }
-  boolean hasNext(unsigned long blockNum){
+  boolean hasNext(BlockID blockNum){
     return Blocks::getNextBlock(blockNum) != blockNum;
   }
-  boolean hasPrev(unsigned long blockNum){
+  boolean hasPrev(BlockID blockNum){
     return Blocks::getPrevBlock(blockNum) != blockNum;
   }
-  unsigned long getNextBlock(unsigned long blockNum){
+  BlockID getNextBlock(BlockID blockNum){
     unsigned long addr = Blocks::getBlockAddress( blockNum ) + 4;
-    Serial.println(String("Next for ")+blockNum+" is "+RAM::memReadUL(addr));
+    //Serial.println(String("Next for ")+blockNum+" is "+RAM::memReadUL(addr));
     return RAM::memReadUL( addr );
   }
-  unsigned long getPrevBlock(unsigned long blockNum){
+  BlockID getPrevBlock(BlockID blockNum){ //<67108867 4294967295>
     unsigned long addr = Blocks::getBlockAddress( blockNum );
     return RAM::memReadUL( addr );
   }
-
-  unsigned long getBlockNumber(unsigned long address){
+  BlockID getFirst(BlockID blockNum){
+    while(hasPrev(blockNum)) blockNum = getPrevBlock(blockNum);
+    return blockNum;
+  }
+  BlockID getLast(BlockID blockNum){
+    while(hasNext(blockNum)) blockNum = getNextBlock(blockNum);
+    return blockNum;
+  }
+  
+  BlockID getBlockNumber(unsigned long address){ //inverse of getBlockAddress, doesn't use payload size
     return address / Blocks::BLOCK_SIZE;
   }
-  unsigned long getBlockAddress(unsigned long number){
-    return number * Blocks::BLOCK_SIZE;
+  unsigned long getBlockAddress(BlockID block){
+    return block * Blocks::BLOCK_SIZE;
   }
 
-  unsigned long allocate(){
-    unsigned long block2 = Blocks::locateUnused();
+  BlockID allocate(){
+    BlockID block2 = Blocks::locateUnused();
     if(block2 == 0)
       return 0; //none
       
@@ -58,11 +63,12 @@ namespace Blocks{
     return block2;
   }
 
-  unsigned long allocate(unsigned long previous){
-    while(Blocks::hasNext(previous)) previous = Blocks::getNextBlock(previous);
-    unsigned long block2 = Blocks::locateUnused();
+  BlockID allocate(BlockID previous){
+    BlockID block2 = Blocks::locateUnused();
     if(block2 == 0)
       return 0; //none
+
+    previous = getLast(previous);
       
     unsigned long addr1 = Blocks::getBlockAddress( previous );
     unsigned long addr2 = Blocks::getBlockAddress( block2 );
@@ -74,10 +80,10 @@ namespace Blocks{
     Blocks::blocksUsed++;
     return block2;
   }
-  void deallocate(unsigned long toDeallocate){//putting the first block in a sequence will erase the whole sequence
+  void deallocate(BlockID toDeallocate){//putting the first block in a sequence will erase the whole sequence
     while(true){
       unsigned long addr = Blocks::getBlockAddress(toDeallocate);
-      unsigned long next = Blocks::getNextBlock(toDeallocate);
+      BlockID       next = Blocks::getNextBlock(toDeallocate);
       RAM::memWriteFill(addr, 0, Blocks::BLOCK_SIZE); //clean up
       Blocks::blocksUsed--;
       if(next == toDeallocate) break;
@@ -85,121 +91,29 @@ namespace Blocks{
       toDeallocate = next;
     }
   }
-  unsigned long locateUnused(){ 
+  BlockID locateUnused(){ 
     Serial.println(String("Looking for block in range 1 to ")+maxBlocks() );
-    for(unsigned long blockN = 1; blockN < maxBlocks(); blockN++){
+    if(blocksUsed == maxBlocks()){
+      Serial.println("OUT OF MEMORY");
+      return 0;
+    }
+    
+    for(BlockID blockN = 1; blockN < maxBlocks(); blockN++){
       if( ! Blocks::isUsed(blockN) ) return blockN;
     }
     Serial.println("OUT OF MEMORY");
     return 0; //none, out of memory
   }
 
-  unsigned long maxBlocks(){
+  BlockID maxBlocks(){
     return ((RAM::MAX_CHIP_ADDR+1) / Blocks::BLOCK_SIZE) * RAM::memoryUnits;
   }
-  
-  namespace Channel{
-    void read( unsigned long startingBlock, unsigned long &seekAddr, byte* buf, unsigned int s, unsigned int len){
-      unsigned long targetBlockInSequence = seekAddr / Blocks::BLOCK_PAYLOAD_SIZE;
-      unsigned long cur = startingBlock;
-      unsigned long next = Blocks::getNextBlock( cur );
-      unsigned int nRead = 0;
-      while(next!=cur && cur != targetBlockInSequence){
-        cur = next;
-        next = Blocks::getNextBlock( cur );
-      }
-      if(cur != targetBlockInSequence) {seekAddr += nRead; return ;}
-      while( len > 0 ){
-        unsigned int toRead = min(len, Blocks::BLOCK_PAYLOAD_SIZE);
-        RAM::memRead(Blocks::getBlockAddress(cur)+8, buf, s, toRead); //addr, buf, start, len
-        s+=toRead;
-        len-=toRead;
-        nRead += toRead;
-        if(len > 0 && next==cur) return nRead;
-        cur = next;
-        next = Blocks::getNextBlock( cur );
-      }
-      seekAddr += nRead;
-      return ;
-    }
-    void write(unsigned long startingBlock, unsigned long &seekAddr, byte* buf, unsigned int s, unsigned int len){
-      unsigned long targetBlockInSequence = seekAddr / Blocks::BLOCK_PAYLOAD_SIZE;
-      unsigned long cur = startingBlock;
-      unsigned long next = Blocks::getNextBlock( cur );
-      unsigned int nWrote = 0;
-      while(next!=cur && cur != targetBlockInSequence){
-        cur = next;
-        next = Blocks::getNextBlock( cur );
-      }
-      while(cur < targetBlockInSequence){
-        cur = Blocks::allocate(cur);
-      }
-      unsigned int pos = s;
-      while(len > 0){
-        if(cur == 0) break; //no addr
-        unsigned int toWrite = min(len, Blocks::BLOCK_PAYLOAD_SIZE);
-        RAM::memWrite(Blocks::getBlockAddress(cur)+8, buf, s, toWrite);
-        nWrote += toWrite;
-        s      += toWrite;
-        len    -= toWrite;
-        if(len <= 0) {seekAddr += nWrote; return;}
-        
-        if(!Blocks::hasNext(cur)) //allocate or get next block
-          cur = Blocks::allocate(cur);
-        else
-          cur = Blocks::getNextBlock(cur);
-      }
-      seekAddr += nWrote; return;
-    }
-    
-    void write(unsigned long startingBlock, unsigned long &seekAddr, String value){
-      Value v;
-      v.ui = value.length();
-      byte buf[value.length()];
-      arrayCopy(value, buf);
-      
-      write(startingBlock, seekAddr, v.bArr2, 0, 2); //seekAddr incremented in write
-      write(startingBlock, seekAddr, buf, 0, value.length());
-    }
-    void write(unsigned long startingBlock, unsigned long &seekAddr, unsigned long value){
-      Value v;
-      v.ul = value;
-      write(startingBlock, seekAddr, v.bArr4, 0, 4);
-    }
-    void write(unsigned long startingBlock, unsigned long &seekAddr, byte value){
-      Value v;
-      v.b = value;
-      write(startingBlock, seekAddr, v.bArr1, 0, 1);
-    }
-    void write(unsigned long startingBlock, unsigned long &seekAddr, unsigned int value){
-      Value v;
-      v.ui = value;
-      write(startingBlock, seekAddr, v.bArr2, 0, 2);
-    }
-    
-    String        readString(unsigned long startingBlock, unsigned long &seekAddr){
-      Value v;
-      read(startingBlock, seekAddr, v.bArr2, 0, 2);
-      byte buf[v.ui];
-      read(startingBlock, seekAddr, buf, 0, v.ui);
 
-      return String((char*)buf);
-    }
-    unsigned long readUnsignedLong(unsigned long startingBlock, unsigned long &seekAddr){
-      Value v;
-      read(startingBlock, seekAddr, v.bArr4, 0, 4);
-      return v.ul;
-    }
-    byte          readByte(unsigned long startingBlock, unsigned long &seekAddr){
-      Value v;
-      read(startingBlock, seekAddr, v.bArr1, 0, 1);
-      return v.b;
-    }
-    unsigned int  readUnsinedInt(unsigned long startingBlock, unsigned long &seekAddr){
-      Value v;
-      read(startingBlock, seekAddr, v.bArr2, 0, 2);
-      return v.ui;
-    }
-
+  BlockID getNth(BlockID start, BlockID offset){
+    for(BlockID x = 0; x<offset; x++)
+      start = getNextBlock(start);
+    return start;
   }
+  
+
 }
